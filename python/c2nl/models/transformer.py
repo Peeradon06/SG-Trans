@@ -27,20 +27,21 @@ class Embedder(nn.Module):
 
         self.use_src_word = args.use_src_word
         self.use_tgt_word = args.use_tgt_word
-        if self.use_src_word:
+        # word embedding
+        if self.use_src_word:   # src
             self.src_word_embeddings = Embeddings(args.emsize,
                                                   args.src_vocab_size,
                                                   constants.PAD)
             self.enc_input_size += args.emsize
-        if self.use_tgt_word:
+        if self.use_tgt_word:   # tgt
             self.tgt_word_embeddings = Embeddings(args.emsize,
                                                   args.tgt_vocab_size,
                                                   constants.PAD)
             self.dec_input_size += args.emsize
-
+        # char embedding
         self.use_src_char = args.use_src_char
         self.use_tgt_char = args.use_tgt_char
-        if self.use_src_char:
+        if self.use_src_char:   # src
             assert len(args.filter_size) == len(args.nfilters)
             self.src_char_embeddings = CharEmbedding(args.n_characters,
                                                      args.char_emsize,
@@ -49,7 +50,7 @@ class Embedder(nn.Module):
             self.enc_input_size += sum(list(map(int, args.nfilters)))
             self.src_highway_net = Highway(self.enc_input_size, num_layers=2)
 
-        if self.use_tgt_char:
+        if self.use_tgt_char:   # tgt
             assert len(args.filter_size) == len(args.nfilters)
             self.tgt_char_embeddings = CharEmbedding(args.n_characters,
                                                      args.char_emsize,
@@ -57,7 +58,7 @@ class Embedder(nn.Module):
                                                      args.nfilters)
             self.dec_input_size += sum(list(map(int, args.nfilters)))
             self.tgt_highway_net = Highway(self.dec_input_size, num_layers=2)
-
+        
         self.use_type = args.use_code_type
         if self.use_type:
             self.type_embeddings = nn.Embedding(len(constants.TOKEN_TYPE_MAP),
