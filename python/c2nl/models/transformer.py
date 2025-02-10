@@ -63,7 +63,7 @@ class Embedder(nn.Module):
         if self.use_type:
             self.type_embeddings = nn.Embedding(len(constants.TOKEN_TYPE_MAP),
                                                 self.enc_input_size)
-
+        # position embedding
         self.src_pos_emb = args.src_pos_emb
         self.tgt_pos_emb = args.tgt_pos_emb
         self.no_relative_pos = all(v == 0 for v in args.max_relative_pos)
@@ -85,32 +85,38 @@ class Embedder(nn.Module):
                 mode='encoder',
                 step=None):
 
-        if mode == 'encoder':
+        if mode == 'encoder':   # src
             word_rep = None
             if self.use_src_word:
+                # generate word representation -> (batch, seq_len, embedding_size)
                 word_rep = self.src_word_embeddings(sequence.unsqueeze(2))  # B x P x d
             if self.use_src_char:
+                # generate character representation -> (batch, seq_len, filter_size)
+                # filter_size = number of filters used in the character embedding layer
                 char_rep = self.src_char_embeddings(sequence_char)  # B x P x f
                 if word_rep is None:
                     word_rep = char_rep
                 else:
                     word_rep = torch.cat((word_rep, char_rep), 2)  # B x P x d+f
+                # pass character representation through highway network
                 word_rep = self.src_highway_net(word_rep)  # B x P x d+f
 
             if self.use_type:
                 type_rep = self.type_embeddings(sequence_type)
                 word_rep = word_rep + type_rep
 
+            # add position embedding
             if self.src_pos_emb and self.no_relative_pos:
                 pos_enc = torch.arange(start=0,
                                        end=word_rep.size(1)).type(torch.LongTensor)
+                # expands pos_enc to match the shape of word_rep except for the last dimension.
                 pos_enc = pos_enc.expand(*word_rep.size()[:-1])
                 if word_rep.is_cuda:
                     pos_enc = pos_enc.cuda()
                 pos_rep = self.src_pos_embeddings(pos_enc)
                 word_rep = word_rep + pos_rep
 
-        elif mode == 'decoder':
+        elif mode == 'decoder': # tgt
             word_rep = None
             if self.use_tgt_word:
                 word_rep = self.tgt_word_embeddings(sequence.unsqueeze(2))  # B x P x d
@@ -121,6 +127,7 @@ class Embedder(nn.Module):
                 else:
                     word_rep = torch.cat((word_rep, char_rep), 2)  # B x P x d+f
                 word_rep = self.tgt_highway_net(word_rep)  # B x P x d+f
+            # add position embedding
             if self.tgt_pos_emb:
                 if step is None:
                     pos_enc = torch.arange(start=0,
@@ -167,12 +174,17 @@ class Encoder(nn.Module):
                 code_dataflow,code_controlflow,input_len):
         layer_outputs, _ = self.transformer(input, code_keyword,code_intoken,code_instatement,code_dataflow,code_controlflow,input_len)  # B x seq_len x h
         if self.use_all_enc_layers:
+            # stack all layer outputs
             output = torch.stack(layer_outputs, dim=2)  # B x seq_len x nlayers x h
+            # compute a weighted sum of the layers 
             layer_scores = self.layer_weights(output).squeeze(3)
+            # softmax over layers
             layer_scores = f.softmax(layer_scores, dim=-1)
+            # applied the weighted to output using matmul 
             memory_bank = torch.matmul(output.transpose(2, 3),
                                        layer_scores.unsqueeze(3)).squeeze(3)
         else:
+            # take the output of the last layer
             memory_bank = layer_outputs[-1]
         return memory_bank, layer_outputs
 

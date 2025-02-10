@@ -80,9 +80,9 @@ class TransformerEncoder(EncoderBase):
           C --> O
     Args:
         num_layers (int): number of encoder layers
-        d_model (int): size of the model
-        heads (int): number of heads
-        d_ff (int): size of the inner FF layer
+        d_model (int): size of the model -> used in feed forward
+        heads (int): number of heads    -> used in multi-head attention
+        d_ff (int): size of the inner FF layer -> used in feed forward
         dropout (float): dropout parameters
         embeddings (:obj:`onmt.modules.Embeddings`):
           embeddings to use, should have positional encodings
@@ -105,10 +105,12 @@ class TransformerEncoder(EncoderBase):
         super(TransformerEncoder, self).__init__()
 
         self.num_layers = num_layers
+        # some checking of relative position
         if isinstance(max_relative_positions, int):
             max_relative_positions = [max_relative_positions] * self.num_layers
         assert len(max_relative_positions) == self.num_layers
-
+        
+        # initialize a list of transformer encoder layers 
         self.layer = nn.ModuleList(
             [TransformerEncoderLayer(d_model,
                                      heads,
@@ -121,6 +123,7 @@ class TransformerEncoder(EncoderBase):
              for i in range(num_layers)])
 
     def count_parameters(self):
+        # counts the number of trainable parameters
         params = list(self.layer.parameters())
         return sum(p.numel() for p in params if p.requires_grad)
 
@@ -133,6 +136,7 @@ class TransformerEncoder(EncoderBase):
             (`FloatTensor`):
             * outputs `[batch_size x src_len x model_dim]`
         """
+        # check the src tensor and the lengths tensor
         self._check_args(src, lengths)
 
         out = src
